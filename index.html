@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SERVER</title>
+</head>
+<body>
+<form onsubmit="return false;">
+  <fieldset>
+    <legend>Server</legend>
+    <button id="startServer">Start Server</button>
+    Server Name (share this with your friends): <input id="serverServerName" disabled>
+    <button id="startGame">Start Game (after your friends have joined)</button>
+  </fieldset>
+  <fieldset>
+    <legend>Client</legend>
+    Server Name (ask you friends): <input id="clientServerName">
+    <button id="joinServer">Join Server (and wait for server to start the game)</button>
+  </fieldset>
+</form>
+<canvas width="500" height="500" id="gameCanvas" tabindex="1" style="border: 1px solid black;"></canvas>
+<script>window.serverType = 'server'; document.getElementById("gameCanvas").focus();</script>
+<script src="http://cdn.peerjs.com/0.3/peer.js"></script>
+<script type="text/javascript" src="./target/scala-2.12/scalajs-fun-fastopt.js"></script>
+</body>
+</html>
