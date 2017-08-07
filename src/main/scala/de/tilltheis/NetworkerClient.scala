@@ -51,6 +51,10 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
   private var cachedJoins = Seq.empty[Server.Join]
   private var clients = Map.empty[ActorRef, Set[String]]
 
+  // cache full bodies here because network messages only contain deltas
+  private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
+  private var cachedBodies = initialCachedBodies
+  private var cachedGameStatus: Game.Status = Game.Running
 
   override def receive: Receive = {
     case NewConnection(conn) =>
@@ -72,8 +76,21 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
     case RemoteCommand(json) =>
       import JsonCodec.Implicits._
       JsonCodec.decodeJson[GameState](json) match {
-        case Success(gameState) =>
+        case Success(optimizedGameState) =>
+          // game restart?
+          if (cachedGameStatus.isInstanceOf[Game.Finished] && optimizedGameState.state == Game.Running) {
+            cachedBodies = initialCachedBodies
+          }
+          cachedGameStatus = optimizedGameState.state
+
+          val players = optimizedGameState.players map { player =>
+            player.copy(body = player.body.headOption.fold(cachedBodies(player.name))(_ :: cachedBodies(player.name)))
+          }
+          val gameState = optimizedGameState.copy(players = players)
+
+          players foreach (p => cachedBodies += p.name -> p.body)
           clients.keys foreach (_ ! gameState)
+
         case Failure(t) => log.error(t, "could not parse remote command {}", JSON.stringify(json))
       }
 
@@ -82,12 +99,12 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
   private def sendJoin(conn: DataConnection, join: Server.Join): Unit = {
     import JsonCodec.Implicits._
     conn.send(JsonCodec.encodeJson(RemoteJoin(peer.id, join.names)))
+    clients += join.client -> join.names
   }
 
   private def flushClientCache(): Unit = {
     connection foreach { conn =>
       cachedJoins foreach (sendJoin(conn, _))
-      clients ++= cachedJoins map (j => j.client -> j.names)
       cachedJoins = Seq.empty
     }
   }

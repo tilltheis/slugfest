@@ -1,10 +1,11 @@
 package de.tilltheis
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
 import com.peerjs.{DataConnection, Peer, PeerJSOption}
 import de.tilltheis.Game.PlayerAction
 import de.tilltheis.NetworkerServer.{NewConnection, RemoteJoin, RemoteMessage, ServerStarted}
 
+import scala.concurrent.duration._
 import scala.scalajs.js
 
 object NetworkerServer {
@@ -30,9 +31,7 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with
     context.parent ! ServerStarted(id)
 
     peer.on("connection", (connection: DataConnection) => {
-      log.info("new connection from {}", connection.peer)
-
-      self ! NewConnection(connection)
+      log.info("connection request from {}", connection.peer)
 
       connection.on("error", (error: js.Any) => {
         log.error("connection error {}", error)
@@ -45,11 +44,27 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with
           self ! RemoteMessage(connection.peer, _)
         }
       })
+
+      // the "open" event is so unreliable we have to poll for it. probably because the event listener registration
+      // sometimes happens after the event has been fired and the event listener isn't being triggered in that case
+      lazy val openConnectionPoller: Cancellable = context.system.scheduler.schedule(0.seconds, 100.millis) {
+        if (connection.open) {
+          log.info("connection opened to {}", connection.peer)
+          openConnectionPoller.cancel()
+          self ! NewConnection(connection)
+        }
+      }(context.dispatcher)
+      openConnectionPoller // evaluate lazy val
     })
   })
 
   private var connections = Set.empty[DataConnection]
   private var clients = Map.empty[String, ActorRef]
+
+  // cache full bodies here because network messages only contain deltas
+  private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
+  private var cachedBodies = initialCachedBodies
+  private var cachedGameStatus: Game.Status = Game.Running
 
   override def receive: Receive = {
     case NewConnection(conn) =>
@@ -64,8 +79,23 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with
       clients(peerId) ! playerAction
 
     case gameState: Game.GameState =>
+      // only send possibly changed data
+
+      // game restart?
+      if (cachedGameStatus.isInstanceOf[Game.Finished] && gameState.state == Game.Running) {
+        cachedBodies = initialCachedBodies
+      }
+      cachedGameStatus = gameState.state
+
+      val optimizedPlayers = gameState.players map { player =>
+        player.copy(body = player.body.headOption.toList filterNot cachedBodies(player.name).headOption.contains)
+      }
+      val optimizedGameState = gameState.copy(players = optimizedPlayers)
+
+      gameState.players foreach (p => cachedBodies += p.name -> p.body)
+
       import JsonCodec.Implicits._
-      connections foreach (_.send(JsonCodec.encodeJson(gameState)))
+      connections foreach (_.send(JsonCodec.encodeJson(optimizedGameState)))
   }
 
   private def jsonToServerMessage(json: js.Any): Option[Any] = {

@@ -24,18 +24,24 @@ class Game private(dimensions: Dimensions, playerNames: Set[String], server: Act
   private var losingOrder = Seq.empty[String]
 
   override def receive: Receive = {
-    case StartPlaying => self ! Tick
+    case StartPlaying =>
+      // notify about initial state
+      notifyServerAndScheduleTick()
 
     case Tick =>
       runFrame()
-      val status = if (losingOrder.size < players.size - 1) Running else Finished((playerNames filterNot losingOrder.contains).toSeq ++ losingOrder.reverse)
-      server ! GameState(players.values.toSet, status)
-      if (status == Running) {
-        context.system.scheduler.scheduleOnce(hundredFps, self, Tick)
-      }
+      notifyServerAndScheduleTick()
 
     case PlayerAction(player, maybeDirection) =>
       directions = directions.updated(player, maybeDirection)
+  }
+
+  private def notifyServerAndScheduleTick() = {
+    val status = if (losingOrder.size < players.size - 1) Running else Finished((playerNames filterNot losingOrder.contains).toSeq ++ losingOrder.reverse)
+    server ! GameState(players.values.toSet, status)
+    if (status == Running) {
+      context.system.scheduler.scheduleOnce(hundredFps, self, Tick)
+    }
   }
 
   private def runFrame(): Unit = {
