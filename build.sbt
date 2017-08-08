@@ -1,4 +1,4 @@
-name := "scalajs-fun"
+name := "slugfest"
 
 version := "1.0"
 
