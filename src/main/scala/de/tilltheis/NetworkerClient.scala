@@ -74,9 +74,11 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
       connection foreach (_.send(json))
 
     case RemoteCommand(json) =>
-      import JsonCodec.Implicits._
-      JsonCodec.decodeJson[GameState](json) match {
-        case Success(optimizedGameState) =>
+      jsonToMessage(json).fold(log.error("could not parse remote command {}", JSON.stringify(json))) {
+        case Server.StartGame =>
+          context.parent ! Server.StartGame
+
+        case optimizedGameState: GameState =>
           // game restart?
           if (cachedGameStatus.isInstanceOf[Game.Finished] && optimizedGameState.state == Game.Running) {
             cachedBodies = initialCachedBodies
@@ -91,9 +93,20 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
           players foreach (p => cachedBodies += p.name -> p.body)
           clients.keys foreach (_ ! gameState)
 
-        case Failure(t) => log.error(t, "could not parse remote command {}", JSON.stringify(json))
+        case Server.UserJoined(name) =>
+          log.info("user joined: {}", name)
+          context.parent ! Server.UserJoined(name)
+
+        case x => log.error("unhandled remote command {}", x)
       }
 
+  }
+
+  private def jsonToMessage(json: js.Any): Option[Any] = {
+    import JsonCodec.Implicits._
+    (JsonCodec.decodeJson[Server.StartGame.type](json) orElse
+      JsonCodec.decodeJson[GameState](json) orElse
+      JsonCodec.decodeJson[Server.UserJoined](json)).toOption
   }
 
   private def sendJoin(conn: DataConnection, join: Server.Join): Unit = {

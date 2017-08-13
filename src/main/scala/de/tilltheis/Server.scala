@@ -16,8 +16,12 @@ object Server {
   case class Clients(clients: Map[ActorRef, Set[String]]) extends ServerData
   case class Simulation(clients: Map[ActorRef, Set[String]], game: ActorRef) extends ServerData
 
+  // incoming messages
   case class Join(client: ActorRef, names: Set[String])
   case object StartGame
+
+  // outgoing messages
+  case class UserJoined(name: String)
 }
 
 class Server private () extends FSM[ServerState, ServerData] {
@@ -25,6 +29,10 @@ class Server private () extends FSM[ServerState, ServerData] {
 
   when(AwaitingClients) {
     case Event(Join(newClientActor, newUserNames), Clients(existingClients)) =>
+      newUserNames foreach { name =>
+        context.parent ! UserJoined(name)
+        existingClients.keySet foreach (_ ! UserJoined(name))
+      }
       stay using Clients(existingClients + (newClientActor -> newUserNames))
 
     case Event(StartGame, Clients(clients)) =>
@@ -33,6 +41,7 @@ class Server private () extends FSM[ServerState, ServerData] {
 
   private def startGame(clients: Map[ActorRef, Set[String]]) = {
     val game = context.actorOf(Game.props(Dimensions(500, 500), clients.values.flatten.toSet, self))
+    clients.keySet foreach (_ ! StartGame)
     goto(RunningSimulation) using Simulation(clients, game)
   }
 

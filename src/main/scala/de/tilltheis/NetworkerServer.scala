@@ -3,13 +3,14 @@ package de.tilltheis
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
 import com.peerjs.{DataConnection, Peer, PeerJSOption}
 import de.tilltheis.Game.PlayerAction
-import de.tilltheis.NetworkerServer.{NewConnection, RemoteJoin, RemoteMessage, ServerStarted}
+import de.tilltheis.NetworkerServer._
 
 import scala.concurrent.duration._
 import scala.scalajs.js
 
 object NetworkerServer {
-  def props(server: ActorRef, peerJsApiKey: String): Props = Props(new NetworkerServer(server, peerJsApiKey))
+  def props(server: ActorRef, peerJsApiKey: String, serverPeerId: String): Props =
+    Props(new NetworkerServer(server, peerJsApiKey, serverPeerId))
 
   case class ServerStarted(peerId: String)
 
@@ -18,8 +19,8 @@ object NetworkerServer {
   case class RemoteMessage(peerId: String, message: Any)
 }
 
-class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with ActorLogging {
-  val peer = new Peer(PeerJSOption(key = peerJsApiKey))
+class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: String) extends Actor with ActorLogging {
+  val peer = new Peer(serverPeerId, PeerJSOption(key = peerJsApiKey))
 
   peer.on("error", (error: js.Any) => {
     log.error("peer error {}", error)
@@ -60,6 +61,7 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with
 
   private var connections = Set.empty[DataConnection]
   private var clients = Map.empty[String, ActorRef]
+  private var userNames = Set.empty[String]
 
   // cache full bodies here because network messages only contain deltas
   private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
@@ -74,9 +76,22 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String) extends Actor with
       val client = context.actorOf(RemoteClient.props(server, self))
       clients += peerId -> client
       server ! Server.Join(client, join.users)
+      userNames ++= join.users
+      import JsonCodec.Implicits._
+      connections find (_.peer == peerId) foreach { con =>
+        userNames foreach (u => con.send(JsonCodec.encodeJson(Server.UserJoined(u))))
+      }
 
     case RemoteMessage(peerId, playerAction: PlayerAction) =>
       clients(peerId) ! playerAction
+
+    case Server.UserJoined(name) =>
+      import JsonCodec.Implicits._
+      connections foreach (_.send(JsonCodec.encodeJson(Server.UserJoined(name))))
+
+    case Server.StartGame =>
+      import JsonCodec.Implicits._
+      connections foreach (_.send(JsonCodec.encodeJson(Server.StartGame)))
 
     case gameState: Game.GameState =>
       // only send possibly changed data

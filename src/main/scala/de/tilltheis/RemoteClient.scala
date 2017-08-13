@@ -9,7 +9,10 @@ object RemoteClient {
 
 class RemoteClient private (gameServer: ActorRef, networkerServer: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = {
-    case playerAction: Game.PlayerAction => gameServer ! playerAction
-    case gameState: Game.GameState => networkerServer ! gameState
+    case x: Game.PlayerAction => gameServer ! x
+
+    case x: Server.StartGame.type => networkerServer ! x
+    case x: Server.UserJoined => networkerServer ! x
+    case x: Game.GameState => networkerServer ! x
   }
 }

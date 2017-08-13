@@ -16,4 +16,17 @@ package object tilltheis {
     case object Right extends Direction
   }
 
+  // https://stackoverflow.com/a/12034334
+  def escapeHtml(value: String): String = {
+    val entityMap = Map(
+      '&' -> "&amp;",
+      '<' -> "&lt;",
+      '>' -> "&gt;",
+      '"' -> "&quot;",
+      '\'' -> "&#39;",
+      '/' -> "&#x2F;",
+      '`' -> "&#x60;",
+      '=' -> "&#x3D")
+    value.flatMap(c => entityMap.getOrElse(c, c.toString))
+  }
 }

@@ -6,11 +6,11 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import org.scalajs.dom
 import org.scalajs.dom.html
 
-class View private(dimensions: Dimensions, canvas: html.Canvas) extends Actor with ActorLogging {
+class View private(dimensions: Dimensions) extends Actor with ActorLogging {
   import de.tilltheis.View._
   import context.dispatcher
 
-  context.system.eventStream.subscribe(self, classOf[Game.GameState])
+  private val canvas = dom.document.getElementById("gameCanvas").asInstanceOf[html.Canvas]
 
   private val ctx = canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
   private val colors = IndexedSeq("#f00", "#0f0", "#00f")
@@ -21,9 +21,16 @@ class View private(dimensions: Dimensions, canvas: html.Canvas) extends Actor wi
   private val sixtyFps = (1.0 / 60.0).seconds
 
 
-  override def preStart(): Unit = self ! Tick
+  override def preStart(): Unit = {
+    canvas.style.display = "block"
+    self ! Tick
+  }
 
   override def postRestart(reason: Throwable): Unit = ()
+
+  override def postStop(): Unit = {
+    canvas.style.display = "none"
+  }
 
   override def receive: Receive = {
     case Game.GameState(players, status) =>
@@ -97,7 +104,7 @@ class View private(dimensions: Dimensions, canvas: html.Canvas) extends Actor wi
 }
 
 object View {
-  def props(dimensions: Dimensions, canvas: html.Canvas): Props = Props(new View(dimensions, canvas))
+  def props(dimensions: Dimensions): Props = Props(new View(dimensions))
 
   private case object Tick
   case class Player(name: String, body: Seq[Point])

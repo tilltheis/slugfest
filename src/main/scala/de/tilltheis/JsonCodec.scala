@@ -1,6 +1,7 @@
 package de.tilltheis
 
 import de.tilltheis.Game.{GameState, Player, PlayerAction, Status}
+import de.tilltheis.InternetServerService.InternetServer
 import de.tilltheis.NetworkerServer.RemoteJoin
 
 import scala.scalajs.js
@@ -123,6 +124,18 @@ object JsonCodec {
       case Game.Finished(winningOrder) => Dynamic.literal(winningOrder = encodeJson(winningOrder))
     }
 
+    implicit val decodeStartGame: JsonDecoder[Server.StartGame.type ] =
+      JsonDecoder(decodeJson[String](_).get match { case "StartGame" => Server.StartGame })
+    implicit val encodeStartGame: JsonEncoder[Server.StartGame.type] =
+      JsonEncoder(Function.const("StartGame"))
+
+    implicit val decodeUserJoined: JsonDecoder[Server.UserJoined] = JsonDecoder { json =>
+      Server.UserJoined(decodeJson[String](json.name).get)
+    }
+    implicit val encodeUserJoined: JsonEncoder[Server.UserJoined] = JsonEncoder {
+      case Server.UserJoined(name) => Dynamic.literal(name = encodeJson(name))
+    }
+
     implicit val decodeGameState: JsonDecoder[GameState] = JsonDecoder { json =>
       GameState(decodeJson[Set[Player]](json.players).get, decodeJson[Game.Status](json.state).get)
     }
@@ -135,6 +148,13 @@ object JsonCodec {
     }
     implicit val encodeRemoteJoin: JsonEncoder[RemoteJoin] = JsonEncoder {
       case RemoteJoin(peerId, users) => Dynamic.literal(peerId = encodeJson(peerId), users = encodeJson(users))
+    }
+
+    implicit val decodeInternetServer: JsonDecoder[InternetServer] = JsonDecoder { json =>
+      InternetServer(decodeJson[String](json.peerId).get, decodeJson[String](json.name).get)
+    }
+    implicit val encodeInternetServer: JsonEncoder[InternetServer] = JsonEncoder {
+      case InternetServer(peerId, name) => Dynamic.literal(peerId = encodeJson(peerId), name = encodeJson(name))
     }
   }
 }

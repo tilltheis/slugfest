@@ -1,25 +1,190 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>SERVER</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Slugfest</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+      html, body, .container {
+        margin: 0;
+        height: 100%;
+        min-height: 100%;
+      }
+
+      body, .container {
+        display: flex;
+        flex-direction: column;
+        margin: auto;
+      }
+
+      header,
+      footer {
+        flex: none;
+        text-align: center;
+      }
+
+      main {
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        flex: auto;
+      }
+
+      #game, #mainMenuWidget, #lobbyWidget {
+        display: flex;
+        flex-direction: column;
+        margin: 0 auto;
+      }
+
+      #game {
+        position: relative;
+      }
+
+      #lobbyWidget {
+        display: none;
+        position: absolute;
+        background-color: rgba(255, 255, 255, 0.9);
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        padding: 10%;
+        padding: 10%;
+      }
+
+      #lobbyWidget .panel {
+        height: 100%;
+
+        display: flex;
+        flex-direction: column;
+        margin: auto;
+      }
+
+      #lobbyWidget .panel-heading, #lobbyWidget .panel-footer {
+        flex: none;
+      }
+
+      #lobbyWidget .panel-body {
+        height: 100%;
+
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        flex: auto;
+      }
+
+
+      #gameCanvas {
+        width: 100%;
+        height: 100%;
+        display: none;
+        border: 1px solid black;
+      }
+
+
+      .serverListContainer {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+      }
+
+      #serverListWidget {
+        overflow: auto;
+      }
+    </style>
   </head>
   <body>
-    <form onsubmit="return false;">
-      <fieldset>
-        <legend>Server</legend>
-        <button id="startServer">Start Server</button>
-        Server Name (share this with your friends): <input id="serverServerName" disabled>
-        <button id="startGame">Start Game (after your friends have joined)</button>
-      </fieldset>
-      <fieldset>
-        <legend>Client</legend>
-        Server Name (ask you friends): <input id="clientServerName">
-        <button id="joinServer">Join Server (and wait for server to start the game)</button>
-      </fieldset>
-    </form>
-    <canvas width="500" height="500" id="gameCanvas" tabindex="1" style="border: 1px solid black;"></canvas>
-    <script>window.serverType = 'server'; document.getElementById("gameCanvas").focus();</script>
+    <div class="container">
+
+      <header class="page-header">
+        <h1>Slugfest</h1>
+      </header>
+
+      <main>
+
+        <div id="game">
+
+          <div id="mainMenuWidget">
+
+            <form class="form-horizontal" onsubmit="return false;">
+              <div class="form-group">
+                <div class="col-xs-12">
+                  <div class="input-group">
+                    <div class="input-group-addon">User Name</div>
+                    <input class="form-control" id="userNameInput" value="Player123" >
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="col-xs-6">
+                  <button type="button" id="playOfflineButton" class="btn btn-default btn-block btn-lg" disabled title="Coming soon…"><i class="fa fa-users" aria-hidden="true"></i> Play Offline W/ Friends</button>
+                </div>
+                <div class="col-xs-6">
+                  <button type="button" id="hostServerButton" class="col-xs-6 btn btn-default btn-block btn-lg"><i class="fa fa-globe" aria-hidden="true"></i> Host Online Server</button>
+                </div>
+              </div>
+            </form>
+
+            <div class="panel panel-default serverListContainer">
+              <div class="panel-heading">
+                <h3 class="panel-title">Join Server</h3>
+              </div>
+
+              <div class="list-group" id="serverListWidget"></div>
+            </div>
+
+          </div>
+
+
+          <div id="lobbyWidget">
+
+            <div class="panel panel-default" style="width: 100%;">
+              <div class="panel-heading">
+                <h3 class="panel-title">Player123's Server</h3>
+              </div>
+
+              <div class="panel-body">
+                <p>Wait for enough players to join before starting the game.</p>
+
+                <h4>User Names</h4>
+                <ol id="lobbyUserList"></ol>
+              </div>
+
+              <div class="panel-footer" style="text-align: right;">
+                <button type="button" id="quitLobbyButton" class="btn btn-default">Cancel</button>
+                <button type="button" id="startServerGameButton" class="btn btn-primary">Start Game</button>
+              </div>
+            </div>
+
+          </div>
+
+
+          <canvas width="500" height="500" id="gameCanvas"></canvas>
+
+
+        </div>
+
+      </main>
+
+      <footer>
+        Copyright © 2017 <a href="http://tilltheis.de">Till Theis</a><br>
+        Source Code On <a href="https://github.com/tilltheis/slugfest">GitHub</a>
+      </footer>
+
+    </div>
+    <script>
+      window.onresize = function() {
+        var mainEl = document.getElementsByTagName("main")[0];
+        var gameEl = document.getElementById("game");
+        var widthHeight = Math.min(mainEl.offsetWidth, mainEl.offsetHeight) + "px";
+        gameEl.style.width = widthHeight;
+        gameEl.style.height = widthHeight;
+      };
+      window.onload = window.onresize;
+    </script>
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.13.0.min.js"></script>
     <script src="http://cdn.peerjs.com/0.3/peer.js"></script>
     <script src="target/scala-2.12/slugfest-fastopt.js"></script>
   </body>

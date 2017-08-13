@@ -2,16 +2,17 @@ package de.tilltheis
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.tilltheis.User.KeyCode
-import org.scalajs.dom.{ext, html}
+import org.scalajs.dom
+import org.scalajs.dom.ext
 import org.scalajs.dom.raw.KeyboardEvent
 
-class User private(name: String, leftKey: KeyCode, rightKey: KeyCode, game: ActorRef, element: html.Element) extends Actor with ActorLogging {
+class User private(name: String, leftKey: KeyCode, rightKey: KeyCode, game: ActorRef) extends Actor with ActorLogging {
   import de.tilltheis.User._
 
   private var pressedKey: Option[KeyCode] = None
 
-  private def registerListener(eventName: String, createEvent: Int => KeyEvent) = {
-    element.addEventListener[KeyboardEvent](eventName, { event =>
+  private def registerListener(eventName: String, createEvent: Int => KeyEvent): Unit = {
+    dom.document.addEventListener[KeyboardEvent](eventName, { event =>
       if (!event.getModifierState("Accel") && !event.repeat && Set(leftKey, rightKey).contains(event.keyCode)) {
         event.preventDefault()
         self ! createEvent(event.keyCode)
@@ -42,11 +43,11 @@ class User private(name: String, leftKey: KeyCode, rightKey: KeyCode, game: Acto
 }
 
 object User {
-  def props(name: String, leftKey: KeyCode, rightKey: KeyCode, game: ActorRef, element: html.Element): Props =
-    Props(new User(name, leftKey, rightKey, game, element))
+  def props(name: String, leftKey: KeyCode, rightKey: KeyCode, game: ActorRef): Props =
+    Props(new User(name, leftKey, rightKey, game))
 
   type KeyCode = Int
-  val KeyCode = ext.KeyCode
+  val KeyCode: ext.KeyCode.type = ext.KeyCode
 
   private sealed trait KeyEvent
   private case class KeyDown(keyCode: KeyCode) extends KeyEvent
