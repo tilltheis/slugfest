@@ -14,9 +14,9 @@ sbt clean fullOptJS
 # For some reason we have to compile once again with a changed file to not get
 # exceptions at runtime. Maybe it's related to the config files that are being
 # compiled into the binary.
-echo >> src/main/scala/de/tilltheis/Main.scala
+echo >> src/main/scala/de/tilltheis/App.scala
 sbt fullOptJS
-git checkout src/main/scala/de/tilltheis/Main.scala
+git checkout src/main/scala/de/tilltheis/App.scala
 
 git checkout gh-pages
 
