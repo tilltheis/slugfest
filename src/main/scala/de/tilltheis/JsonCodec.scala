@@ -1,6 +1,6 @@
 package de.tilltheis
 
-import de.tilltheis.Game.{GameState, Player, PlayerAction, Status}
+import de.tilltheis.Game.{GameState, Player, SteerPlayer, Status}
 import de.tilltheis.InternetServerService.InternetServer
 import de.tilltheis.NetworkerServer.RemoteJoin
 
@@ -86,11 +86,11 @@ object JsonCodec {
       case Point(x, y) => encodeJson(Seq(x, y))
     }
 
-    implicit val decodePlayerAction: JsonDecoder[PlayerAction] = JsonDecoder { json =>
-      PlayerAction(decodeJson[String](json.player).get, decodeJson[Option[Direction]](json.steeringDirection).get)
+    implicit val decodePlayerAction: JsonDecoder[SteerPlayer] = JsonDecoder { json =>
+      SteerPlayer(decodeJson[String](json.player).get, decodeJson[Option[Direction]](json.steeringDirection).get)
     }
-    implicit val encodePlayerAction: JsonEncoder[PlayerAction] = JsonEncoder {
-      case PlayerAction(player, steeringDirection) =>
+    implicit val encodePlayerAction: JsonEncoder[SteerPlayer] = JsonEncoder {
+      case SteerPlayer(player, steeringDirection) =>
         Dynamic.literal(
           player = encodeJson(player),
           steeringDirection = encodeJson(steeringDirection))

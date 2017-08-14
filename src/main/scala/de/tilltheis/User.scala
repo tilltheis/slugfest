@@ -31,13 +31,13 @@ class User private(name: String, leftKey: KeyCode, rightKey: KeyCode, game: Acto
     case KeyDown(keyCode) =>
       pressedKey = Some(keyCode)
       val direction = if (keyCode == leftKey) Direction.Left else Direction.Right
-      game ! Game.PlayerAction(name, Some(direction))
+      game ! Game.SteerPlayer(name, Some(direction))
 
     case KeyUp(keyCode) =>
       // support key overlay by only acknowledging the last hit key
       if (pressedKey contains keyCode) {
         pressedKey = None
-        game ! Game.PlayerAction(name, None)
+        game ! Game.SteerPlayer(name, None)
       }
   }
 }

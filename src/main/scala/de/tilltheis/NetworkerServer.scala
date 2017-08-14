@@ -2,7 +2,7 @@ package de.tilltheis
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
 import com.peerjs.{DataConnection, Peer, PeerJSOption}
-import de.tilltheis.Game.PlayerAction
+import de.tilltheis.Game.SteerPlayer
 import de.tilltheis.NetworkerServer._
 
 import scala.concurrent.duration._
@@ -82,7 +82,7 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: Stri
         userNames foreach (u => con.send(JsonCodec.encodeJson(Server.UserJoined(u))))
       }
 
-    case RemoteMessage(peerId, playerAction: PlayerAction) =>
+    case RemoteMessage(peerId, playerAction: SteerPlayer) =>
       clients(peerId) ! playerAction
 
     case Server.UserJoined(name) =>
@@ -115,7 +115,7 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: Stri
 
   private def jsonToServerMessage(json: js.Any): Option[Any] = {
     import JsonCodec.Implicits._
-    (JsonCodec.decodeJson[RemoteJoin](json) orElse JsonCodec.decodeJson[PlayerAction](json)).toOption
+    (JsonCodec.decodeJson[RemoteJoin](json) orElse JsonCodec.decodeJson[SteerPlayer](json)).toOption
   }
 
 }

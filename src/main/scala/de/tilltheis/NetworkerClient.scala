@@ -2,7 +2,7 @@ package de.tilltheis
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import com.peerjs.{DataConnection, Peer, PeerJSOption}
-import de.tilltheis.Game.{GameState, PlayerAction}
+import de.tilltheis.Game.{GameState, SteerPlayer}
 import de.tilltheis.NetworkerClient.{NewConnection, RemoteCommand}
 import de.tilltheis.NetworkerServer.RemoteJoin
 
@@ -68,7 +68,7 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
         sendJoin(_, join)
       }
 
-    case action: PlayerAction =>
+    case action: SteerPlayer =>
       import JsonCodec.Implicits._
       val json = JsonCodec.encodeJson(action)
       connection foreach (_.send(json))

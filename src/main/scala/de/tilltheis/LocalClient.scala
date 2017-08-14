@@ -19,7 +19,7 @@ class LocalClient private (server: ActorRef, view: ActorRef, userSettings: Set[U
   }
 
   override def receive: Receive = {
-    case playerAction: Game.PlayerAction => server ! playerAction
+    case playerAction: Game.SteerPlayer => server ! playerAction
     case gameState: Game.GameState => view ! gameState
   }
 }

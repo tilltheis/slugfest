@@ -2,6 +2,7 @@ package de.tilltheis
 
 import scala.concurrent.duration._
 import akka.actor.{ActorRef, FSM, Props}
+import de.tilltheis.Game.GameState
 import de.tilltheis.Server._
 
 object Server {
@@ -22,6 +23,7 @@ object Server {
 
   // outgoing messages
   case class UserJoined(name: String)
+  case class GameTicked(gameState: GameState)
 }
 
 class Server private () extends FSM[ServerState, ServerData] {
@@ -40,7 +42,7 @@ class Server private () extends FSM[ServerState, ServerData] {
   }
 
   private def startGame(clients: Map[ActorRef, Set[String]]) = {
-    val game = context.actorOf(Game.props(Dimensions(500, 500), clients.values.flatten.toSet, self))
+    val game = context.actorOf(Game.props(Dimensions(500, 500), clients.values.flatten.toSet))
     clients.keySet foreach (_ ! StartGame)
     goto(RunningSimulation) using Simulation(clients, game)
   }
@@ -53,8 +55,8 @@ class Server private () extends FSM[ServerState, ServerData] {
   }
 
   when(RunningSimulation) {
-    case Event(Game.PlayerAction(userName, direction), simulation: Simulation) =>
-      simulation.game ! Game.PlayerAction(userName, direction)
+    case Event(Game.SteerPlayer(userName, direction), simulation: Simulation) =>
+      simulation.game ! Game.SteerPlayer(userName, direction)
       stay
 
     case Event(gameState: Game.GameState, simulation: Simulation) =>
