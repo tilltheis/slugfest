@@ -2,49 +2,46 @@ package de.tilltheis
 
 import scala.concurrent.duration._
 import akka.actor.{ActorRef, FSM, Props}
-import de.tilltheis.Game.GameState
 import de.tilltheis.Server._
 
 object Server {
   def props: Props = Props(new Server)
 
+  // commands
+  case class JoinPlayer(player: String)
+  case object StartGame
+
+  // events
+  case class PlayerJoined(name: String)
+  case object GameStarted
+
+  // internal
   sealed trait ServerState
-  case object AwaitingClients extends ServerState
+  case object AwaitingPlayers extends ServerState
   case object RunningSimulation extends ServerState
   case object GameEnded extends ServerState
 
   sealed trait ServerData
-  case class Clients(clients: Map[ActorRef, Set[String]]) extends ServerData
-  case class Simulation(clients: Map[ActorRef, Set[String]], game: ActorRef) extends ServerData
-
-  // incoming messages
-  case class Join(client: ActorRef, names: Set[String])
-  case object StartGame
-
-  // outgoing messages
-  case class UserJoined(name: String)
-  case class GameTicked(gameState: GameState)
+  case class JoinedPlayers(names: Set[String]) extends ServerData
+  case class Simulation(players: Set[String], game: ActorRef) extends ServerData
 }
 
 class Server private () extends FSM[ServerState, ServerData] {
-  startWith(AwaitingClients, Clients(Map.empty))
+  startWith(AwaitingPlayers, JoinedPlayers(Set.empty))
 
-  when(AwaitingClients) {
-    case Event(Join(newClientActor, newUserNames), Clients(existingClients)) =>
-      newUserNames foreach { name =>
-        context.parent ! UserJoined(name)
-        existingClients.keySet foreach (_ ! UserJoined(name))
-      }
-      stay using Clients(existingClients + (newClientActor -> newUserNames))
+  when(AwaitingPlayers) {
+    case Event(JoinPlayer(name), JoinedPlayers(existingPlayers)) =>
+      context.parent ! PlayerJoined(name)
+      stay using JoinedPlayers(existingPlayers + name)
 
-    case Event(StartGame, Clients(clients)) =>
-      startGame(clients)
+    case Event(StartGame, JoinedPlayers(players)) =>
+      startGame(players)
   }
 
-  private def startGame(clients: Map[ActorRef, Set[String]]) = {
-    val game = context.actorOf(Game.props(Dimensions(500, 500), clients.values.flatten.toSet))
-    clients.keySet foreach (_ ! StartGame)
-    goto(RunningSimulation) using Simulation(clients, game)
+  private def startGame(players: Set[String]) = {
+    val game = context.actorOf(Game.props(Dimensions(500, 500), players))
+    context.parent ! GameStarted
+    goto(RunningSimulation) using Simulation(players, game)
   }
 
   onTransition {
@@ -55,22 +52,22 @@ class Server private () extends FSM[ServerState, ServerData] {
   }
 
   when(RunningSimulation) {
-    case Event(Game.SteerPlayer(userName, direction), simulation: Simulation) =>
-      simulation.game ! Game.SteerPlayer(userName, direction)
+    case Event(Game.SteerPlayer(player, direction), simulation: Simulation) =>
+      simulation.game ! Game.SteerPlayer(player, direction)
       stay
 
     case Event(gameState: Game.GameState, simulation: Simulation) =>
-      simulation.clients.keys foreach (_ ! gameState)
+      context.parent ! Game.GameStateChanged(gameState)
 
       gameState.state match {
         case Game.Running => stay()
         case _: Game.Finished =>
-          goto(GameEnded) using Clients(simulation.clients)
+          goto(GameEnded) using JoinedPlayers(simulation.players)
       }
   }
 
   when(GameEnded, 1.seconds) {
-    case Event(StateTimeout, Clients(clients)) =>
+    case Event(StateTimeout, JoinedPlayers(clients)) =>
       startGame(clients)
   }
 

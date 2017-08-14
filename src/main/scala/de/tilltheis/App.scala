@@ -34,11 +34,11 @@ object App {
 class AppModule(peerJsApiKey: String, peerId: String, pubNubPublishKey: String, pubNubSubscribeKey: String, pubNubChannel: PubNubChannel) {
   lazy val pubNub = PubNub(publishKey = pubNubPublishKey, subscribeKey = pubNubSubscribeKey)
   lazy val gameServerProps: Props = Server.props
-  def networkerServerProps(gameServer: ActorRef): Props = NetworkerServer.props(gameServer, peerJsApiKey, peerId)
+  def networkerServerProps: Props = NetworkerServer.props(gameServerProps, peerJsApiKey, peerId)
   def networkerClientProps(serverPeerId: String): Props = NetworkerClient.props(serverPeerId, peerJsApiKey)
   lazy val viewProps: Props = View.props(Dimensions(500, 500))
   def localClientProps(server: ActorRef, view: ActorRef, userSettings: Set[UserSettings]): Props = LocalClient.props(server, view, userSettings)
-  def hostLobbyProps(userName: String, internetServerService: ActorRef): Props = HostLobby.props(peerId, userName, gameServerProps, networkerServerProps, viewProps, localClientProps, internetServerService)
+  def hostLobbyProps(userName: String, internetServerService: ActorRef): Props = HostLobby.props(peerId, userName, networkerServerProps, viewProps, localClientProps, internetServerService)
   def guestLobbyProps(serverPeerId: String, userName: String, serverName: String, internetServerService: ActorRef): Props = GuestLobby.props(serverPeerId, userName, serverName, networkerClientProps, viewProps, localClientProps)
   lazy val internetServerServiceProps: Props = InternetServerService.props(pubNubChannel, pubNub)
   lazy val mainMenuProps: Props = MainMenu.props(hostLobbyProps, guestLobbyProps, internetServerServiceProps)

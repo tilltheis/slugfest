@@ -13,13 +13,14 @@ object Game {
   case class SteerPlayer(player: String, steeringDirection: Option[Direction])
 
   // events
-  case class GameState(players: Set[Player], state: Status)
+  case class GameStateChanged(gameState: GameState)
 
   // helpers
   case class Player(name: String, body: List[Point], orientation: Double, steeringDirection: Option[Direction], hasCollided: Boolean)
   sealed trait Status
   case object Running extends Status
   case class Finished(winningOrder: Seq[String]) extends Status
+  case class GameState(players: Set[Player], state: Status)
 
   // internal
   private case object Tick

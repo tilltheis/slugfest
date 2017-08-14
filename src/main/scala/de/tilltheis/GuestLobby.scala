@@ -33,11 +33,13 @@ class GuestLobby private(serverPeerId: String,
   private val networkerClient = context.actorOf(networkerClientProps(serverPeerId))
   private val userSettings = Set(
     LocalClient.UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
-  private val localClient = context.actorOf(localClientProps(networkerClient, self, userSettings))
-  networkerClient ! Server.Join(localClient, userSettings map (_.name))
+  userSettings foreach { settings =>
+    val user = User.props(settings.name, settings.leftKey, settings.rightKey, self)
+    context.actorOf(user)
+  }
+  userSettings foreach (us => networkerClient ! Server.JoinPlayer(us.name))
 
   userList.innerHTML = ""
-  self ! Server.UserJoined(serverName) // hack until we got proper complete initialization
 
   override def preStart(): Unit = {
     lobbyWidget.style.display = "flex"
@@ -54,20 +56,22 @@ class GuestLobby private(serverPeerId: String,
 
 
   def receiveInLobby: Receive = {
-    case Server.UserJoined(name) =>
+    case Server.PlayerJoined(name) =>
       val listItem = dom.document.createElement("li")
       listItem.innerHTML = escapeHtml(name)
       userList.appendChild(listItem)
 
-    case Server.StartGame =>
+    case Server.GameStarted =>
       lobbyWidget.style.display = "none"
       context.parent ! Server.StartGame
       context.become(receiveInGame(context.actorOf(viewProps)))
   }
 
   def receiveInGame(view: ActorRef): Receive = {
-    case gameState: Game.GameState =>
+    case Game.GameStateChanged(gameState) =>
       view ! gameState
+
+    case playerAction: Game.SteerPlayer => networkerClient ! playerAction
   }
 
 

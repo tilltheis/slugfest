@@ -1,15 +1,14 @@
 package de.tilltheis
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import com.peerjs.{DataConnection, Peer, PeerJSOption}
-import de.tilltheis.Game.{GameState, SteerPlayer}
+import de.tilltheis.Game.SteerPlayer
 import de.tilltheis.NetworkerClient.{NewConnection, RemoteCommand}
 import de.tilltheis.NetworkerServer.RemoteJoin
 
 import scala.concurrent.duration._
 import scala.scalajs.js
 import scala.scalajs.js.JSON
-import scala.util.{Failure, Success}
 
 object NetworkerClient {
   def props(serverPeerId: String, peerJsApiKey: String): Props = Props(new NetworkerClient(serverPeerId, peerJsApiKey))
@@ -48,8 +47,7 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
 
 
   private var connection: Option[DataConnection] = None
-  private var cachedJoins = Seq.empty[Server.Join]
-  private var clients = Map.empty[ActorRef, Set[String]]
+  private var cachedJoins = Seq.empty[Server.JoinPlayer]
 
   // cache full bodies here because network messages only contain deltas
   private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
@@ -57,11 +55,9 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
   private var cachedGameStatus: Game.Status = Game.Running
 
   override def receive: Receive = {
-    case NewConnection(conn) =>
-      connection = Some(conn)
-      flushClientCache()
+    // commands
 
-    case join: Server.Join =>
+    case join: Server.JoinPlayer =>
       connection.fold {
         cachedJoins :+= join
       } {
@@ -73,12 +69,21 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
       val json = JsonCodec.encodeJson(action)
       connection foreach (_.send(json))
 
+
+    // events
+
+
+    // internal
+    case NewConnection(conn) =>
+      connection = Some(conn)
+      flushClientCache()
+
     case RemoteCommand(json) =>
       jsonToMessage(json).fold(log.error("could not parse remote command {}", JSON.stringify(json))) {
-        case Server.StartGame =>
-          context.parent ! Server.StartGame
+        case started@Server.GameStarted =>
+          context.parent ! started
 
-        case optimizedGameState: GameState =>
+        case Game.GameStateChanged(optimizedGameState) =>
           // game restart?
           if (cachedGameStatus.isInstanceOf[Game.Finished] && optimizedGameState.state == Game.Running) {
             cachedBodies = initialCachedBodies
@@ -91,28 +96,25 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
           val gameState = optimizedGameState.copy(players = players)
 
           players foreach (p => cachedBodies += p.name -> p.body)
-          clients.keys foreach (_ ! gameState)
+          context.parent ! Game.GameStateChanged(gameState)
 
-        case Server.UserJoined(name) =>
-          log.info("user joined: {}", name)
-          context.parent ! Server.UserJoined(name)
+        case joined: Server.PlayerJoined =>
+          context.parent ! joined
 
         case x => log.error("unhandled remote command {}", x)
       }
-
   }
 
   private def jsonToMessage(json: js.Any): Option[Any] = {
     import JsonCodec.Implicits._
-    (JsonCodec.decodeJson[Server.StartGame.type](json) orElse
-      JsonCodec.decodeJson[GameState](json) orElse
-      JsonCodec.decodeJson[Server.UserJoined](json)).toOption
+    (JsonCodec.decodeJson[Server.GameStarted.type](json) orElse
+      JsonCodec.decodeJson[Game.GameStateChanged](json) orElse
+      JsonCodec.decodeJson[Server.PlayerJoined](json)).toOption
   }
 
-  private def sendJoin(conn: DataConnection, join: Server.Join): Unit = {
+  private def sendJoin(conn: DataConnection, join: Server.JoinPlayer): Unit = {
     import JsonCodec.Implicits._
-    conn.send(JsonCodec.encodeJson(RemoteJoin(peer.id, join.names)))
-    clients += join.client -> join.names
+    conn.send(JsonCodec.encodeJson(RemoteJoin(peer.id, join.player)))
   }
 
   private def flushClientCache(): Unit = {

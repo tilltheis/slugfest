@@ -9,17 +9,17 @@ import scala.concurrent.duration._
 import scala.scalajs.js
 
 object NetworkerServer {
-  def props(server: ActorRef, peerJsApiKey: String, serverPeerId: String): Props =
-    Props(new NetworkerServer(server, peerJsApiKey, serverPeerId))
+  def props(serverProps: Props, peerJsApiKey: String, serverPeerId: String): Props =
+    Props(new NetworkerServer(serverProps, peerJsApiKey, serverPeerId))
 
   case class ServerStarted(peerId: String)
 
   case class NewConnection(connection: DataConnection)
-  case class RemoteJoin(peerId: String, users: Set[String])
+  case class RemoteJoin(peerId: String, player: String)
   case class RemoteMessage(peerId: String, message: Any)
 }
 
-class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: String) extends Actor with ActorLogging {
+class NetworkerServer(serverProps: Props, peerJsApiKey: String, serverPeerId: String) extends Actor with ActorLogging {
   val peer = new Peer(serverPeerId, PeerJSOption(key = peerJsApiKey))
 
   peer.on("error", (error: js.Any) => {
@@ -59,9 +59,11 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: Stri
     })
   })
 
+  private val server = context.actorOf(serverProps)
+
   private var connections = Set.empty[DataConnection]
   private var clients = Map.empty[String, ActorRef]
-  private var userNames = Set.empty[String]
+  private var playerNames = Set.empty[String]
 
   // cache full bodies here because network messages only contain deltas
   private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
@@ -69,31 +71,34 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: Stri
   private var cachedGameStatus: Game.Status = Game.Running
 
   override def receive: Receive = {
-    case NewConnection(conn) =>
-      connections += conn
+    // commands
 
-    case RemoteMessage(peerId, join: RemoteJoin) =>
-      val client = context.actorOf(RemoteClient.props(server, self))
-      clients += peerId -> client
-      server ! Server.Join(client, join.users)
-      userNames ++= join.users
+    case join: Server.JoinPlayer =>
+      server ! join
+
+    case start@Server.StartGame =>
+      server ! start
+
+    case steer: Game.SteerPlayer =>
+      server ! steer
+
+
+    // events
+
+    case started@Server.GameStarted =>
+      context.parent ! started
       import JsonCodec.Implicits._
-      connections find (_.peer == peerId) foreach { con =>
-        userNames foreach (u => con.send(JsonCodec.encodeJson(Server.UserJoined(u))))
-      }
+      connections foreach (_.send(JsonCodec.encodeJson(started)))
 
-    case RemoteMessage(peerId, playerAction: SteerPlayer) =>
-      clients(peerId) ! playerAction
-
-    case Server.UserJoined(name) =>
+    case joined@Server.PlayerJoined(name) =>
+      playerNames += name
+      context.parent ! joined
       import JsonCodec.Implicits._
-      connections foreach (_.send(JsonCodec.encodeJson(Server.UserJoined(name))))
+      connections foreach (_.send(JsonCodec.encodeJson(Server.PlayerJoined(name))))
 
-    case Server.StartGame =>
-      import JsonCodec.Implicits._
-      connections foreach (_.send(JsonCodec.encodeJson(Server.StartGame)))
+    case changed@Game.GameStateChanged(gameState) =>
+      context.parent ! changed
 
-    case gameState: Game.GameState =>
       // only send possibly changed data
 
       // game restart?
@@ -110,7 +115,27 @@ class NetworkerServer(server: ActorRef, peerJsApiKey: String, serverPeerId: Stri
       gameState.players foreach (p => cachedBodies += p.name -> p.body)
 
       import JsonCodec.Implicits._
-      connections foreach (_.send(JsonCodec.encodeJson(optimizedGameState)))
+      connections foreach (_.send(JsonCodec.encodeJson(Game.GameStateChanged(optimizedGameState))))
+
+
+    // internal
+    case NewConnection(conn) =>
+      connections += conn
+
+    case RemoteMessage(peerId, join: RemoteJoin) =>
+      val client = context.actorOf(RemoteClient.props(server, self))
+      clients += peerId -> client
+      server ! Server.JoinPlayer(join.player)
+
+      import JsonCodec.Implicits._
+      connections find (_.peer == peerId) foreach { con =>
+        playerNames foreach (u => con.send(JsonCodec.encodeJson(Server.PlayerJoined(u))))
+      }
+
+      playerNames += join.player
+
+    case RemoteMessage(peerId, playerAction: SteerPlayer) =>
+      clients(peerId) ! playerAction
   }
 
   private def jsonToServerMessage(json: js.Any): Option[Any] = {

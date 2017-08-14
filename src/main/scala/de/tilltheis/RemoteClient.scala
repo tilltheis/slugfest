@@ -12,7 +12,7 @@ class RemoteClient private (gameServer: ActorRef, networkerServer: ActorRef) ext
     case x: Game.SteerPlayer => gameServer ! x
 
     case x: Server.StartGame.type => networkerServer ! x
-    case x: Server.UserJoined => networkerServer ! x
+    case x: Server.PlayerJoined => networkerServer ! x
     case x: Game.GameState => networkerServer ! x
   }
 }

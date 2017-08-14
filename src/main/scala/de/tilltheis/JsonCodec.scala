@@ -129,12 +129,17 @@ object JsonCodec {
     implicit val encodeStartGame: JsonEncoder[Server.StartGame.type] =
       JsonEncoder(Function.const("StartGame"))
 
-    implicit val decodeUserJoined: JsonDecoder[Server.UserJoined] = JsonDecoder { json =>
-      Server.UserJoined(decodeJson[String](json.name).get)
+    implicit val decodeUserJoined: JsonDecoder[Server.PlayerJoined] = JsonDecoder { json =>
+      Server.PlayerJoined(decodeJson[String](json.name).get)
     }
-    implicit val encodeUserJoined: JsonEncoder[Server.UserJoined] = JsonEncoder {
-      case Server.UserJoined(name) => Dynamic.literal(name = encodeJson(name))
+    implicit val encodeUserJoined: JsonEncoder[Server.PlayerJoined] = JsonEncoder {
+      case Server.PlayerJoined(name) => Dynamic.literal(name = encodeJson(name))
     }
+
+    implicit val decodeGameStarted: JsonDecoder[Server.GameStarted.type] =
+      JsonDecoder(decodeJson[String](_).get match { case "GameStarted" => Server.GameStarted })
+    implicit val encodeGameStarted: JsonEncoder[Server.GameStarted.type] =
+      JsonEncoder(Function.const("GameStarted"))
 
     implicit val decodeGameState: JsonDecoder[GameState] = JsonDecoder { json =>
       GameState(decodeJson[Set[Player]](json.players).get, decodeJson[Game.Status](json.state).get)
@@ -143,11 +148,18 @@ object JsonCodec {
       case GameState(players, state) => Dynamic.literal(players = encodeJson(players), state = encodeJson(state))
     }
 
+    implicit val decodeGameStateChanged: JsonDecoder[Game.GameStateChanged] = JsonDecoder { json =>
+      Game.GameStateChanged(decodeJson[GameState](json.gameState).get)
+    }
+    implicit val encodeGameStateChanged: JsonEncoder[Game.GameStateChanged] = JsonEncoder {
+      case Game.GameStateChanged(gameState) => Dynamic.literal(gameState = encodeJson(gameState))
+    }
+
     implicit val decodeRemoteJoin: JsonDecoder[RemoteJoin] = JsonDecoder { json =>
-      RemoteJoin(decodeJson[String](json.peerId).get, decodeJson[Set[String]](json.users).get)
+      RemoteJoin(decodeJson[String](json.peerId).get, decodeJson[String](json.player).get)
     }
     implicit val encodeRemoteJoin: JsonEncoder[RemoteJoin] = JsonEncoder {
-      case RemoteJoin(peerId, users) => Dynamic.literal(peerId = encodeJson(peerId), users = encodeJson(users))
+      case RemoteJoin(peerId, player) => Dynamic.literal(peerId = encodeJson(peerId), player = encodeJson(player))
     }
 
     implicit val decodeInternetServer: JsonDecoder[InternetServer] = JsonDecoder { json =>

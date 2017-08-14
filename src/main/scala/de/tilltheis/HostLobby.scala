@@ -9,25 +9,20 @@ import org.scalajs.dom.html
 object HostLobby {
   def props(peerId: String,
             userName: String,
-            gameServerProps: Props,
-            networkerServerProps: ActorRef => Props,
+            serverProps: Props,
             viewProps: Props,
             localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props,
             internetServerService: ActorRef): Props =
-    Props(new HostLobby(peerId, userName, gameServerProps, networkerServerProps, viewProps, localClientProps, internetServerService))
+    Props(new HostLobby(peerId, userName, serverProps, viewProps, localClientProps, internetServerService))
 
-  object LobbyType extends Enumeration {
-    val Host, Guest = Value
-  }
-
+  // internal
   private case object StopServer
   private case object StartGame
 }
 
 class HostLobby private(peerId: String,
                         userName: String,
-                        gameServerProps: Props,
-                        networkerServerProps: ActorRef => Props,
+                        serverProps: Props,
                         viewProps: Props,
                         localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props,
                         internetServerService: ActorRef) extends Actor with ActorLogging {
@@ -36,14 +31,16 @@ class HostLobby private(peerId: String,
   private val quitLobbyButton = dom.document.getElementById("quitLobbyButton").asInstanceOf[html.Button]
   private val startGameButton = dom.document.getElementById("startServerGameButton").asInstanceOf[html.Button]
 
-  private val gameServer = context.actorOf(gameServerProps)
-  private val networkerGameServer = context.actorOf(networkerServerProps(gameServer))
+  private val server = context.actorOf(serverProps)
 
   internetServerService ! InternetServerService.PublishServer(peerId, userName)
   private val userSettings = Set(
     LocalClient.UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
-  private val localClient = context.actorOf(localClientProps(gameServer, self, userSettings), "localClient")
-  gameServer ! Server.Join(localClient, userSettings map (_.name))
+  userSettings foreach { settings =>
+    val user = User.props(settings.name, settings.leftKey, settings.rightKey, server)
+    context.actorOf(user)
+  }
+  userSettings foreach (us => server ! Server.JoinPlayer(us.name))
 
   override def preStart(): Unit = {
     lobbyWidget.style.display = "flex"
@@ -60,25 +57,30 @@ class HostLobby private(peerId: String,
   }
 
   def receiveInLobby: Receive = {
+    // commands
+
+    case StartGame =>
+      server ! Server.StartGame
+
     case StopServer =>
       context.stop(self)
 
-    case Server.UserJoined(name) =>
+
+    // events
+
+    case Server.PlayerJoined(name) =>
       val listItem = dom.document.createElement("li")
       listItem.innerHTML = escapeHtml(name)
       userList.appendChild(listItem)
 
-    case StartGame =>
+    case Server.GameStarted =>
       lobbyWidget.style.display = "none"
-
       context.parent ! Server.StartGame
-      gameServer ! Server.StartGame
-
       context.become(receiveInGame(context.actorOf(viewProps)))
   }
 
   def receiveInGame(view: ActorRef): Receive = {
-    case gameState: Game.GameState =>
+    case Game.GameStateChanged(gameState) =>
       view ! gameState
   }
 
