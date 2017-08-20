@@ -16,7 +16,7 @@ class View private(dimensions: Dimensions) extends Actor with ActorLogging {
   private val colors = IndexedSeq("#f00", "#0f0", "#00f")
 
   private var cachedPlayers: Set[Game.Player] = Set.empty
-  private var cachedStatus: Game.Status = Game.Running
+  private var cachedStatus: Game.Status = Game.Started
 
   private val sixtyFps = (1.0 / 60.0).seconds
 

@@ -115,12 +115,12 @@ object JsonCodec {
     }
 
     implicit val decodeStatus: JsonDecoder[Status] = JsonDecoder { outerJson =>
-      val decodeRunning = JsonDecoder(decodeJson[String](_).get match { case "Running" => Game.Running })
+      val decodeStarted = JsonDecoder(decodeJson[String](_).get match { case "Started" => Game.Started })
       val decodeFinished = JsonDecoder(json => Game.Finished(decodeJson[Seq[String]](json.winningOrder).get))
-      (decodeFinished(outerJson) orElse decodeRunning(outerJson)).get
+      (decodeFinished(outerJson) orElse decodeStarted(outerJson)).get
     }
     implicit val encodeStatus: JsonEncoder[Status] = JsonEncoder {
-      case Game.Running => "Running"
+      case Game.Started => "Started"
       case Game.Finished(winningOrder) => Dynamic.literal(winningOrder = encodeJson(winningOrder))
     }
 
@@ -136,10 +136,10 @@ object JsonCodec {
       case Server.PlayerJoined(name) => Dynamic.literal(name = encodeJson(name))
     }
 
-    implicit val decodeGameStarted: JsonDecoder[Server.GameStarted.type] =
-      JsonDecoder(decodeJson[String](_).get match { case "GameStarted" => Server.GameStarted })
-    implicit val encodeGameStarted: JsonEncoder[Server.GameStarted.type] =
-      JsonEncoder(Function.const("GameStarted"))
+    implicit val decodeStarted: JsonDecoder[Game.Started.type] =
+      JsonDecoder(decodeJson[String](_).get match { case "Started" => Game.Started })
+    implicit val encodeStarted: JsonEncoder[Game.Started.type] =
+      JsonEncoder(Function.const("Started"))
 
     implicit val decodeGameState: JsonDecoder[GameState] = JsonDecoder { json =>
       GameState(decodeJson[Set[Player]](json.players).get, decodeJson[Game.Status](json.state).get)

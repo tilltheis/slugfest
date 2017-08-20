@@ -3,7 +3,6 @@ package de.tilltheis
 import java.util.UUID
 
 import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.event.Logging
 import com.pubnub.{PubNub, PubNubChannel}
 import com.typesafe.config.ConfigFactory
 import de.tilltheis.LocalClient.UserSettings
@@ -12,11 +11,8 @@ import scala.concurrent.duration._
 
 object App {
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.load()
+    val config = ConfigFactory.load().withFallback(akkajs.Config.default)
     val system = ActorSystem("app", config)
-
-    // for some reason config log settings are being ignored
-    system.eventStream.setLogLevel(Logging.InfoLevel)
 
     system.scheduler.scheduleOnce(0.millis) {
       val peerJsApiKey = config.getString("peerJs.apiKey")
@@ -33,7 +29,8 @@ object App {
 
 class AppModule(peerJsApiKey: String, peerId: String, pubNubPublishKey: String, pubNubSubscribeKey: String, pubNubChannel: PubNubChannel) {
   lazy val pubNub = PubNub(publishKey = pubNubPublishKey, subscribeKey = pubNubSubscribeKey)
-  lazy val gameServerProps: Props = Server.props
+  def gameProps(players: Set[String]): Props = Game.props(Dimensions(500, 500), players)
+  lazy val gameServerProps: Props = Server.props(gameProps)
   def networkerServerProps: Props = NetworkerServer.props(gameServerProps, peerJsApiKey, peerId)
   def networkerClientProps(serverPeerId: String): Props = NetworkerClient.props(serverPeerId, peerJsApiKey)
   lazy val viewProps: Props = View.props(Dimensions(500, 500))

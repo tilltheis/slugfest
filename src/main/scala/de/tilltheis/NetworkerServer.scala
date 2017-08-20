@@ -68,7 +68,7 @@ class NetworkerServer(serverProps: Props, peerJsApiKey: String, serverPeerId: St
   // cache full bodies here because network messages only contain deltas
   private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
   private var cachedBodies = initialCachedBodies
-  private var cachedGameStatus: Game.Status = Game.Running
+  private var cachedGameStatus: Game.Status = Game.Started
 
   override def receive: Receive = {
     // commands
@@ -85,7 +85,7 @@ class NetworkerServer(serverProps: Props, peerJsApiKey: String, serverPeerId: St
 
     // events
 
-    case started@Server.GameStarted =>
+    case started@Game.Started =>
       context.parent ! started
       import JsonCodec.Implicits._
       connections foreach (_.send(JsonCodec.encodeJson(started)))
@@ -102,7 +102,7 @@ class NetworkerServer(serverProps: Props, peerJsApiKey: String, serverPeerId: St
       // only send possibly changed data
 
       // game restart?
-      if (cachedGameStatus.isInstanceOf[Game.Finished] && gameState.state == Game.Running) {
+      if (cachedGameStatus.isInstanceOf[Game.Finished] && gameState.state == Game.Started) {
         cachedBodies = initialCachedBodies
       }
       cachedGameStatus = gameState.state

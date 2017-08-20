@@ -73,9 +73,9 @@ class HostLobby private(peerId: String,
       listItem.innerHTML = escapeHtml(name)
       userList.appendChild(listItem)
 
-    case Server.GameStarted =>
+    case started@Game.Started =>
       lobbyWidget.style.display = "none"
-      context.parent ! Server.StartGame
+      context.parent ! started
       context.become(receiveInGame(context.actorOf(viewProps)))
   }
 

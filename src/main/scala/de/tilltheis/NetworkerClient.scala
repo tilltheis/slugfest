@@ -52,7 +52,7 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
   // cache full bodies here because network messages only contain deltas
   private val initialCachedBodies = Map.empty[String, List[Point]].withDefaultValue(Nil)
   private var cachedBodies = initialCachedBodies
-  private var cachedGameStatus: Game.Status = Game.Running
+  private var cachedGameStatus: Game.Status = Game.Started
 
   override def receive: Receive = {
     // commands
@@ -80,12 +80,12 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
 
     case RemoteCommand(json) =>
       jsonToMessage(json).fold(log.error("could not parse remote command {}", JSON.stringify(json))) {
-        case started@Server.GameStarted =>
+        case started@Game.Started =>
           context.parent ! started
 
         case Game.GameStateChanged(optimizedGameState) =>
           // game restart?
-          if (cachedGameStatus.isInstanceOf[Game.Finished] && optimizedGameState.state == Game.Running) {
+          if (cachedGameStatus.isInstanceOf[Game.Finished] && optimizedGameState.state == Game.Started) {
             cachedBodies = initialCachedBodies
           }
           cachedGameStatus = optimizedGameState.state
@@ -107,7 +107,7 @@ class NetworkerClient(serverPeerId: String, peerJsApiKey: String) extends Actor 
 
   private def jsonToMessage(json: js.Any): Option[Any] = {
     import JsonCodec.Implicits._
-    (JsonCodec.decodeJson[Server.GameStarted.type](json) orElse
+    (JsonCodec.decodeJson[Game.Started.type](json) orElse
       JsonCodec.decodeJson[Game.GameStateChanged](json) orElse
       JsonCodec.decodeJson[Server.PlayerJoined](json)).toOption
   }

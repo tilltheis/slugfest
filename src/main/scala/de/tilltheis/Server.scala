@@ -5,7 +5,7 @@ import akka.actor.{ActorRef, FSM, Props}
 import de.tilltheis.Server._
 
 object Server {
-  def props: Props = Props(new Server)
+  def props(gameProps: Set[String] => Props): Props = Props(new Server(gameProps))
 
   // commands
   case class JoinPlayer(player: String)
@@ -13,7 +13,6 @@ object Server {
 
   // events
   case class PlayerJoined(name: String)
-  case object GameStarted
 
   // internal
   sealed trait ServerState
@@ -26,7 +25,7 @@ object Server {
   case class Simulation(players: Set[String], game: ActorRef) extends ServerData
 }
 
-class Server private () extends FSM[ServerState, ServerData] {
+class Server private(gameProps: Set[String] => Props) extends FSM[ServerState, ServerData] {
   startWith(AwaitingPlayers, JoinedPlayers(Set.empty))
 
   when(AwaitingPlayers) {
@@ -39,8 +38,7 @@ class Server private () extends FSM[ServerState, ServerData] {
   }
 
   private def startGame(players: Set[String]) = {
-    val game = context.actorOf(Game.props(Dimensions(500, 500), players))
-    context.parent ! GameStarted
+    val game = context.actorOf(gameProps(players))
     goto(RunningSimulation) using Simulation(players, game)
   }
 
@@ -52,6 +50,10 @@ class Server private () extends FSM[ServerState, ServerData] {
   }
 
   when(RunningSimulation) {
+    case Event(started@Game.Started, _) =>
+      context.parent ! started
+      stay
+
     case Event(Game.SteerPlayer(player, direction), simulation: Simulation) =>
       simulation.game ! Game.SteerPlayer(player, direction)
       stay
@@ -60,7 +62,7 @@ class Server private () extends FSM[ServerState, ServerData] {
       context.parent ! Game.GameStateChanged(gameState)
 
       gameState.state match {
-        case Game.Running => stay()
+        case Game.Started => stay()
         case _: Game.Finished =>
           goto(GameEnded) using JoinedPlayers(simulation.players)
       }

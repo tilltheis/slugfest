@@ -67,7 +67,7 @@ class MainMenu private(hostLobbyProps: (String, ActorRef) => Props,
     case Terminated(_lobby) =>
       context.become(receiveInMainMenu)
 
-    case Server.StartGame =>
+    case Game.Started =>
       mainMenuWidget.style.display = "none"
   }
 

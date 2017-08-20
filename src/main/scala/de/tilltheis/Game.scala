@@ -18,7 +18,7 @@ object Game {
   // helpers
   case class Player(name: String, body: List[Point], orientation: Double, steeringDirection: Option[Direction], hasCollided: Boolean)
   sealed trait Status
-  case object Running extends Status
+  case object Started extends Status
   case class Finished(winningOrder: Seq[String]) extends Status
   case class GameState(players: Set[Player], state: Status)
 
@@ -48,6 +48,7 @@ class Game private(dimensions: Dimensions, playerNames: Set[String]) extends Act
     case StartPlaying =>
       // notify about initial state
       notifyServerAndScheduleTick()
+      context.parent ! Started
 
     case Tick =>
       runFrame()
@@ -58,9 +59,9 @@ class Game private(dimensions: Dimensions, playerNames: Set[String]) extends Act
   }
 
   private def notifyServerAndScheduleTick() = {
-    val status = if (losingOrder.size < players.size - 1) Running else Finished((playerNames filterNot losingOrder.contains).toSeq ++ losingOrder.reverse)
+    val status = if (losingOrder.size < players.size - 1) Started else Finished((playerNames filterNot losingOrder.contains).toSeq ++ losingOrder.reverse)
     context.parent ! GameState(players.values.toSet, status)
-    if (status == Running) {
+    if (status == Started) {
       context.system.scheduler.scheduleOnce(hundredFps, self, Tick)
     }
   }
