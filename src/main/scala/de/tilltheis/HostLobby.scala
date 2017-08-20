@@ -2,7 +2,6 @@ package de.tilltheis
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.tilltheis.HostLobby.{StartGame, StopServer}
-import de.tilltheis.LocalClient.UserSettings
 import org.scalajs.dom
 import org.scalajs.dom.html
 
@@ -11,9 +10,8 @@ object HostLobby {
             userName: String,
             serverProps: Props,
             viewProps: Props,
-            localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props,
             internetServerService: ActorRef): Props =
-    Props(new HostLobby(peerId, userName, serverProps, viewProps, localClientProps, internetServerService))
+    Props(new HostLobby(peerId, userName, serverProps, viewProps, internetServerService))
 
   // internal
   private case object StopServer
@@ -24,7 +22,6 @@ class HostLobby private(peerId: String,
                         userName: String,
                         serverProps: Props,
                         viewProps: Props,
-                        localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props,
                         internetServerService: ActorRef) extends Actor with ActorLogging {
   private val lobbyWidget = dom.document.getElementById("lobbyWidget").asInstanceOf[html.Element]
   private val userList = dom.document.getElementById("lobbyUserList").asInstanceOf[html.OList]
@@ -35,7 +32,7 @@ class HostLobby private(peerId: String,
 
   internetServerService ! InternetServerService.PublishServer(peerId, userName)
   private val userSettings = Set(
-    LocalClient.UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
+    UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
   userSettings foreach { settings =>
     val user = User.props(settings.name, settings.leftKey, settings.rightKey, server)
     context.actorOf(user)

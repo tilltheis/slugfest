@@ -53,3 +53,5 @@ object User {
   private case class KeyDown(keyCode: KeyCode) extends KeyEvent
   private case class KeyUp(keyCode: KeyCode) extends KeyEvent
 }
+
+case class UserSettings(name: String, leftKey: KeyCode, rightKey: KeyCode)

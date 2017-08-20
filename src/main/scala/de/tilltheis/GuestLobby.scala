@@ -1,7 +1,6 @@
 package de.tilltheis
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Kill, Props}
-import de.tilltheis.LocalClient.UserSettings
 import org.scalajs.dom
 import org.scalajs.dom.html
 
@@ -10,21 +9,15 @@ object GuestLobby {
             userName: String,
             serverName: String,
             networkerClientProps: String => Props,
-            viewProps: Props,
-            localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props): Props =
-    Props(new GuestLobby(serverPeerId, userName, serverName, networkerClientProps, viewProps, localClientProps))
-
-  object LobbyType extends Enumeration {
-    val Host, Guest = Value
-  }
+            viewProps: Props): Props =
+    Props(new GuestLobby(serverPeerId, userName, serverName, networkerClientProps, viewProps))
 }
 
 class GuestLobby private(serverPeerId: String,
                          userName: String,
                          serverName: String,
                          networkerClientProps: String => Props,
-                         viewProps: Props,
-                         localClientProps: (ActorRef, ActorRef, Set[UserSettings]) => Props) extends Actor with ActorLogging {
+                         viewProps: Props) extends Actor with ActorLogging {
   private val lobbyWidget = dom.document.getElementById("lobbyWidget").asInstanceOf[html.Element]
   private val userList = dom.document.getElementById("lobbyUserList").asInstanceOf[html.OList]
   private val quitLobbyButton = dom.document.getElementById("quitLobbyButton").asInstanceOf[html.Button]
@@ -32,7 +25,7 @@ class GuestLobby private(serverPeerId: String,
 
   private val networkerClient = context.actorOf(networkerClientProps(serverPeerId))
   private val userSettings = Set(
-    LocalClient.UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
+    UserSettings(userName, User.KeyCode.Left, User.KeyCode.Right))
   userSettings foreach { settings =>
     val user = User.props(settings.name, settings.leftKey, settings.rightKey, self)
     context.actorOf(user)

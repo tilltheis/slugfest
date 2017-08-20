@@ -5,7 +5,6 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Props}
 import com.pubnub.{PubNub, PubNubChannel}
 import com.typesafe.config.ConfigFactory
-import de.tilltheis.LocalClient.UserSettings
 
 import scala.concurrent.duration._
 
@@ -34,9 +33,8 @@ class AppModule(peerJsApiKey: String, peerId: String, pubNubPublishKey: String, 
   def networkerServerProps: Props = NetworkerServer.props(gameServerProps, peerJsApiKey, peerId)
   def networkerClientProps(serverPeerId: String): Props = NetworkerClient.props(serverPeerId, peerJsApiKey)
   lazy val viewProps: Props = View.props(Dimensions(500, 500))
-  def localClientProps(server: ActorRef, view: ActorRef, userSettings: Set[UserSettings]): Props = LocalClient.props(server, view, userSettings)
-  def hostLobbyProps(userName: String, internetServerService: ActorRef): Props = HostLobby.props(peerId, userName, networkerServerProps, viewProps, localClientProps, internetServerService)
-  def guestLobbyProps(serverPeerId: String, userName: String, serverName: String, internetServerService: ActorRef): Props = GuestLobby.props(serverPeerId, userName, serverName, networkerClientProps, viewProps, localClientProps)
+  def hostLobbyProps(userName: String, internetServerService: ActorRef): Props = HostLobby.props(peerId, userName, networkerServerProps, viewProps, internetServerService)
+  def guestLobbyProps(serverPeerId: String, userName: String, serverName: String, internetServerService: ActorRef): Props = GuestLobby.props(serverPeerId, userName, serverName, networkerClientProps, viewProps)
   lazy val internetServerServiceProps: Props = InternetServerService.props(pubNubChannel, pubNub)
   lazy val mainMenuProps: Props = MainMenu.props(hostLobbyProps, guestLobbyProps, internetServerServiceProps)
 }
